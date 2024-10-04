@@ -29,7 +29,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
-
+#include <ctype.h>
 
 // #include <arpa/inet.h>
 // #include <netinet/in.h>
@@ -61,11 +61,10 @@ time_t t;
     }
 
 // 必须修改，帐号密码和 mac 地址是绑定的
-char user[] = "wangsf5522";
-char pass[] = "Jwedh041020";
-// B0-25-AA-50-29-1D
-uint64_t mac = 0xB025AA50291D; // echo 0x`ifconfig eth | egrep -io "([0-9a-f]{2}:){5}[0-9a-f]{2}" | tr -d ":"`
-
+char user[128] = "";
+char pass[128] = "";
+// echo 0x`ifconfig eth | egrep -io "([0-9a-f]{2}:){5}[0-9a-f]{2}" | tr -d ":"`
+uint64_t mac = 0; 
 // 不一定要修改
 char host[] = "drcom";
 char os[] = "drcom";
@@ -147,19 +146,19 @@ int challenge(int sock, struct sockaddr_in serv_addr, unsigned char* clg_data, i
             #else
             close(sock);
             #endif
-            eprint("[drcom-challenge]: try challenge, but failed, please check your network connection.\n");
+            print("[drcom-challenge]: try challenge, but failed, please check your network connection.\n");
             return EXIT_FAILURE;
         }
         set_challenge_data(clg_data, clg_data_len, challenge_try);
         challenge_try++;
         ret = sendto(sock, clg_data, clg_data_len, 0, (struct sockaddr*)&serv_addr, sizeof(serv_addr));
         if (ret != clg_data_len) {
-            eprint("[drcom-challenge]: send challenge data failed.\n");
+            print("[drcom-challenge]: send challenge data failed.\n");
             continue;
         }
         ret = recvfrom(sock, recv_data, recv_len, 0, NULL, NULL);
         if (ret < 0) {
-            eprint("[drcom-challenge]: recieve data from server failed.\n");
+            print("[drcom-challenge]: recieve data from server failed.\n");
             continue;
         }
         if (*recv_data != 0x02) {
@@ -172,10 +171,10 @@ int challenge(int sock, struct sockaddr_in serv_addr, unsigned char* clg_data, i
                 print("[drcom-challenge]: wrong challenge data.\n");
                 return EXIT_FAILURE;
             }
-            eprint("[drcom-challenge]: challenge failed!, try again.\n");
+            print("[drcom-challenge]: challenge failed!, try again.\n");
         }
     } while ((*recv_data != 0x02));
-    eprint("[drcom-challenge]: challenge success!\n");
+    print("[drcom-challenge]: challenge success!\n");
     return EXIT_SUCCESS;
 }
 
@@ -354,18 +353,18 @@ int login(int sock, struct sockaddr_in serv_addr, unsigned char* login_data, int
             #else
             close(sock);
             #endif
-            eprint("[drcom-login]: try login, but failed, something wrong.\n");
+            print("[drcom-login]: try login, but failed, something wrong.\n");
             return EXIT_FAILURE;
         }
         login_try++;
         ret = sendto(sock, login_data, login_data_len, 0, (struct sockaddr*)&serv_addr, sizeof(serv_addr));
         if (ret != login_data_len) {
-            eprint("[drcom-login]: send login data failed.\n");
+            print("[drcom-login]: send login data failed.\n");
             continue;
         }
         ret = recvfrom(sock, recv_data, recv_len, 0, NULL, NULL);
         if (ret < 0) {
-            eprint("[drcom-login]: recieve data from server failed.\n");
+            print("[drcom-login]: recieve data from server failed.\n");
             continue;
         }
         if (*recv_data != 0x04) {
@@ -375,10 +374,10 @@ int login(int sock, struct sockaddr_in serv_addr, unsigned char* login_data, int
             #else
             close(sock);
             #endif
-                eprint("[drcom-login]: wrong password or username!\n");
+                print("[drcom-login]: wrong password or username!\n");
                 return EXIT_FAILURE;
             }
-            eprint("[drcom-login]: login failed!, try again\n");
+            print("[drcom-login]: login failed!, try again\n");
         }
     } while ((*recv_data != 0x04));
     print("[drcom-login]: login success!\n");
@@ -510,28 +509,29 @@ Result login_and_keep()
     unsigned char send_data[SEND_DATA_SIZE];
     char recv_data[RECV_DATA_SIZE];
     struct sockaddr_in serv_addr;
-    struct user_info_pkt user_info;
 
     sock = socket(AF_INET, SOCK_DGRAM, 0);
     if (sock < 0) {
-        eprint("[drcom]: create sock failed.\n");
+        print("[drcom]: create sock failed.\n");
         return CREATE_SOCK_ERROR;
     }
     // 设置超时
     if (set_socket_timeouts(sock,3,3)){
-        eprint("[drcom]:set timeout failed.\n");
+        print("[drcom]:set timeout failed.\n");
     }
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_addr.s_addr = inet_addr(SERVER_ADDR);
     serv_addr.sin_port = htons(SERVER_PORT);
 
-    // get user information
-    get_user_info(&user_info);
 
     // challenge data length 20
     if (challenge(sock, serv_addr, send_data, 20, recv_data, RECV_DATA_SIZE)) {
         return CHALLENGE_ERROR;
     }
+
+    struct user_info_pkt user_info;
+    // get user information
+    get_user_info(&user_info);
 
     // login data length 338, salt length 4
     set_login_data(&user_info, send_data, 338, (unsigned char*)(recv_data + 4), 4);
@@ -559,7 +559,7 @@ Result login_and_keep()
             #else
             close(sock);
             #endif
-                eprint("[drcom-keep-alive]: couldn't connect to network, check please.\n");
+                print("[drcom-keep-alive]: couldn't connect to network, check please.\n");
                 return ALIVE_ERROR;
             }
         }
@@ -573,7 +573,7 @@ Result login_and_keep()
             ret = sendto(sock, send_data, alive_data_len, 0, (struct sockaddr*)&serv_addr, sizeof(serv_addr));
             if (ret != alive_data_len) {
                 alive_fail_count++;
-                eprint("[drcom-keep-alive]: send keep-alive data failed.\n");
+                print("[drcom-keep-alive]: send keep-alive data failed.\n");
                 continue;
             } else {
                 alive_fail_count = 0;
@@ -585,7 +585,7 @@ Result login_and_keep()
             ret = recvfrom(sock, recv_data, RECV_DATA_SIZE, 0, NULL, NULL);
             if (ret < 0 || *recv_data != 0x07) {
                 alive_fail_count++;
-                eprint("[drcom-keep-alive]: recieve keep-alive response data from server failed.\n");
+                print("[drcom-keep-alive]: recieve keep-alive response data from server failed.\n");
                 continue;
             } else {
                 alive_fail_count = 0;
@@ -606,7 +606,7 @@ Result login_and_keep()
         {
             if(!logout_flag){
                 int ret = test_net_connection();
-                eprint("[drcom-curl]:curl -sL baidu.com return:%d\n",ret);
+                print("[drcom-curl]:curl -sL baidu.com return:%d\n",ret);
                 if (0!=ret) {//接收到logout就不测试了
                     return TEST_NET_CONNECTION_ERROR;
                 }
@@ -623,11 +623,9 @@ Result login_and_keep()
 
     return LOGOUT_SUCCESS;
 }
-void argparse(int argc,char** argv){
-    if (argc != 1) {
-        if (argc == 2) {
+void set_stdoutstderr(const char*path){
             // int fd = open(argv[1], O_WRONLY | O_CREAT | O_APPEND, 0644);//append模式
-            int fd = open(argv[1], O_WRONLY | O_CREAT | O_TRUNC, 0644); // 每次清空
+            int fd = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0644); // 每次清空
             if (fd == -1) {
                 perror("Error opening file");
             } else {
@@ -643,14 +641,98 @@ void argparse(int argc,char** argv){
                 setbuf(stdout, NULL);
                 setbuf(stderr, NULL);
             }
-        } else {
-            printf("Usage: %s [logfile]\n", argv[0]);
+}
+typedef struct {
+    char* username;
+    char* password;
+    char* mac;
+    char* logfile;
+} Arguments;
+
+void print_usage(const char* program_name) {
+    fprintf(stderr, "Usage: %s -u username -p password -m mac_address [logfile]\n", program_name);
+    fprintf(stderr, "MAC address format: 0xXXXXXXXXXXXX (e.g., 0xBBAACC1100DE)\n");
+}
+
+int is_valid_mac(const char* mac) {
+    if (strlen(mac) != 14 || mac[0] != '0' || mac[1] != 'x') {
+        return 0;
+    }
+    
+    for (int i = 2; i < 14; i++) {
+        if (!isxdigit(mac[i])) {
+            return 0;
         }
     }
+    
+    return 1;
 }
+
+Arguments parse_arguments(int argc, char* argv[]) {
+    Arguments args = {NULL, NULL, NULL, NULL};
+    
+    if (argc < 7) {
+        print_usage(argv[0]);
+        exit(1);
+    }
+    
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "-u") == 0) {
+            if (i + 1 < argc) {
+                args.username = argv[++i];
+            } else {
+                fprintf(stderr, "Error: -u requires a username\n");
+                print_usage(argv[0]);
+                exit(1);
+            }
+        } else if (strcmp(argv[i], "-p") == 0) {
+            if (i + 1 < argc) {
+                args.password = argv[++i];
+            } else {
+                fprintf(stderr, "Error: -p requires a password\n");
+                print_usage(argv[0]);
+                exit(1);
+            }
+        } else if (strcmp(argv[i], "-m") == 0) {
+            if (i + 1 < argc) {
+                char* mac = argv[++i];
+                if (!is_valid_mac(mac)) {
+                    fprintf(stderr, "Error: Invalid MAC address format. Expected format: 0xXXXXXXXXXXXX\n");
+                    print_usage(argv[0]);
+                    exit(1);
+                }
+                args.mac = mac;
+            } else {
+                fprintf(stderr, "Error: -m requires a MAC address\n");
+                print_usage(argv[0]);
+                exit(1);
+            }
+        } else if (args.logfile == NULL && i == argc - 1) {
+            args.logfile = argv[i];
+        }
+    }
+    
+    // Verify required arguments
+    if (!args.username || !args.password || !args.mac) {
+        fprintf(stderr, "Error: Username (-u), password (-p), and MAC address (-m) are all required\n");
+        print_usage(argv[0]);
+        exit(1);
+    }
+    
+    return args;
+}
+
 int main(int argc, char* argv[])
 {
-    argparse(argc,argv);
+    Arguments args = parse_arguments(argc, argv);
+    strcpy(user,args.username);
+    strcpy(pass,args.password);
+    sscanf(args.mac,"0x%llx",&mac);
+    user_len=(int)strlen(user);
+    pass_len=(int)strlen(pass);
+    print("[drcom-argparse]:u:%s,pl:%d,mac:0x%llx,logfile:%s\n",user,pass_len,mac,args.logfile?args.logfile:"stdout");
+    if (args.logfile)set_stdoutstderr(args.logfile);
+
     WSADATA wsaData;
     int err = WSAStartup(MAKEWORD(2, 2), &wsaData);
     if (err != 0)
@@ -659,11 +741,11 @@ int main(int argc, char* argv[])
     signal(SIGINT, logout_signal);
     do {
         if (ret != -1) {
-            eprint("[Retry]:...\n");
+            print("[Retry]:...\n");
             sleep(1);
         }
         ret = login_and_keep();
-        eprint("[PANIC]: %s\n", msg[ret]);
+        print("[PANIC]: %s\n", msg[ret]);
     } while (ret != LOGIN_ERROR && ret != LOGOUT_SUCCESS);
     WSACleanup();
     return ret;
