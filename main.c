@@ -61,10 +61,10 @@ time_t t;
     }
 
 // 必须修改，帐号密码和 mac 地址是绑定的
-char user[] = "username";
-char pass[] = "passwd";
-// B0-25-AA-50-29-1A
-uint64_t mac = 0xB025AA50291A; // echo 0x`ifconfig eth | egrep -io "([0-9a-f]{2}:){5}[0-9a-f]{2}" | tr -d ":"`
+char user[] = "wangsf5522";
+char pass[] = "Jwedh041020";
+// B0-25-AA-50-29-1D
+uint64_t mac = 0xB025AA50291D; // echo 0x`ifconfig eth | egrep -io "([0-9a-f]{2}:){5}[0-9a-f]{2}" | tr -d ":"`
 
 // 不一定要修改
 char host[] = "drcom";
@@ -342,6 +342,7 @@ int login(SOCKET sock, struct sockaddr_in serv_addr, unsigned char* login_data, 
 #else
 int login(int sock, struct sockaddr_in serv_addr, unsigned char* login_data, int login_data_len, char* recv_data, int recv_len)
 #endif
+//TODO:返回类型细化
 {
     /* login */
     int ret = 0;
@@ -591,18 +592,24 @@ Result login_and_keep()
             }
             if (alive_count > 1)
                 memcpy(tail, recv_data + 16, tail_len);
-        }
-
-        {
-            if(!logout_flag) sleep(15);
             print("[drcom-keep-alive]: keep alive.\n");
             alive_count = (alive_count + 1) % 3;
         }
+
         {
-            int ret = test_net_connection();
-            eprint("[drcom-curl]:curl -sL baidu.com return:%d\n",ret);
-            if ((0==logout_flag) &&(0!=ret) ) {//接收到logout就不测试了
-                return TEST_NET_CONNECTION_ERROR;
+            for(int i=0;i<15;i++){
+                if(logout_flag) 
+                    break;
+                sleep(1);
+            }
+        }
+        {
+            if(!logout_flag){
+                int ret = test_net_connection();
+                eprint("[drcom-curl]:curl -sL baidu.com return:%d\n",ret);
+                if (0!=ret) {//接收到logout就不测试了
+                    return TEST_NET_CONNECTION_ERROR;
+                }
             }
         }
 
