@@ -1,8 +1,11 @@
 use drcomrs::{load_config, login_and_keep, run_interactive, Config, NetworkError, Result};
+use simplelog as slog;
+use std::fs::File;
+use std::io;
 use std::{env, thread::sleep, time::Duration};
 use NetworkError::*;
-
 fn main() -> Result<()> {
+    let mut logfile: Option<String> = None;
     let args: Vec<String> = env::args().collect();
     let mut interactive = false;
     for arg in &args[1..] {
@@ -14,12 +17,34 @@ fn main() -> Result<()> {
             "-i" => {
                 interactive = true;
             }
-            _ => {
-                eprintln!("Invalid Argument: {}", arg);
-                print_help();
-                return Ok(());
+            f=> {
+                logfile=Some(f.to_string());
             }
         }
+    }
+    if let Some(path) = logfile {
+        match File::create(path) {
+            Ok(file) => match slog::CombinedLogger::init(vec![slog::WriteLogger::new(
+                slog::LevelFilter::Info,
+                slog::Config::default(),
+                file,
+            )]) {
+                Err(e) => {
+                    eprintln!("Error:{}", e);
+                }
+                Ok(_) => {}
+            },
+            Err(e) => {
+                eprintln!("Error:{}", e);
+            }
+        }
+    } else {
+        slog::CombinedLogger::init(vec![slog::WriteLogger::new(
+            slog::LevelFilter::Info,
+            slog::Config::default(),
+            io::stderr(),
+        )])
+        .unwrap();
     }
     let config = load_config();
     if config.is_err() || interactive {
@@ -43,11 +68,10 @@ fn mainloop(config: &Config) -> Result<()> {
             Err(e) => match e {
                 LoginError | LogoutError | LogoutSuccess => return Err(Box::new(e)),
                 _ => {
-                    println!("[drcom-mainloop] PANIC:{:?}", e);
+                    log::error!("[drcom-mainloop] PANIC:{:?}", e);
                 }
             },
-            _ => {
-            }
+            _ => {}
         }
         sleep(Duration::from_secs(5));
     }

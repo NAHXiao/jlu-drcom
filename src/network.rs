@@ -1,5 +1,6 @@
 use crate::config::Config;
 use crate::util::{decrypt, fingerprint, get_ip_by_mac, mac2u64, test_net_connection};
+use log::info;
 use md5::{Digest, Md5};
 use std::net::{Ipv4Addr, SocketAddr, UdpSocket};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -61,18 +62,19 @@ pub fn login_and_keep(config: &Config) -> Result<()> {
     let r = running.clone();
     if !*CTRLC_SET.get().unwrap_or(&false) {
         if let Err(e) = ctrlc::set_handler(move || {
+            info!("[drcom-signal]: received signal, will logout and exit");
             println!("[drcom-signal]: received signal, will logout and exit");
             r.store(false, Ordering::SeqCst);
             if let Err(e) = CTRLC_SET.set(true) {
-                println!("Error setting CTRLC_SET to true : {}", e);
+                info!("Error setting CTRLC_SET to true : {}", e);
             }
         }) {
-            println!("Error setting Ctrl-C handler : {}", e);
+            info!("Error setting Ctrl-C handler : {}", e);
         }
     }
     let mac_bytes = config.mac;
     let ip_address = get_ip_by_mac(mac_bytes)?;
-    println!("[drcom-bindip]: bind to ip: {:?}", ip_address);
+    info!("[drcom-bindip]: bind to ip: {:?}", ip_address);
     let socket = create_socket(&ip_address)?;
     let server_addr: SocketAddr = format!("{}:{}", config.server_addr, config.server_port)
         .parse()
@@ -125,7 +127,7 @@ pub fn login_and_keep(config: &Config) -> Result<()> {
                         .tail
                         .copy_from_slice(&runtime_data.challenge_recv_data[16..20]);
                 }
-                println!("[drcom-keep-alive]: keep alive.");
+                info!("[drcom-keep-alive]: keep alive.");
             }
             Err(_) => {
                 alive_fail_count += 1;
@@ -197,7 +199,7 @@ fn challenge(runtime_data: &mut RuntimeData) -> Result<()> {
         match result {
             Ok((len, _)) => {
                 if len > 0 && runtime_data.challenge_recv_data[0] == 0x02 {
-                    println!("[drcom-challenge]: challenge success!");
+                    info!("[drcom-challenge]: challenge success!");
                     return Ok(());
                 }
 
@@ -205,10 +207,10 @@ fn challenge(runtime_data: &mut RuntimeData) -> Result<()> {
                     return Err(Error::ChallengeError);
                 }
 
-                println!("[drcom-challenge]: challenge failed!, try again.");
+                info!("[drcom-challenge]: challenge failed!, try again.");
             }
             Err(_) => {
-                println!("[drcom-challenge]: receive data from server failed.");
+                info!("[drcom-challenge]: receive data from server failed.");
             }
         }
     }
@@ -417,19 +419,19 @@ fn login(runtime_data: &mut RuntimeData) -> Result<()> {
         match result {
             Ok((len, _)) => {
                 if len > 0 && runtime_data.challenge_recv_data[0] == 0x04 {
-                    println!("[drcom-login]: login success!");
+                    info!("[drcom-login]: login success!");
                     return Ok(());
                 }
 
                 if len > 0 && runtime_data.challenge_recv_data[0] == 0x05 {
-                    println!("[drcom-login]: wrong password or username!");
+                    info!("[drcom-login]: wrong password or username!");
                     return Err(Error::LoginError);
                 }
 
-                println!("[drcom-login]: login failed!, try again.");
+                info!("[drcom-login]: login failed!, try again.");
             }
             Err(_) => {
-                println!("[drcom-login]: receive data from server failed.");
+                info!("[drcom-login]: receive data from server failed.");
             }
         }
     }
@@ -491,7 +493,7 @@ fn receive_alive_response(runtime_data: &mut RuntimeData) -> Result<()> {
             Err(Error::AliveError)
         }
         Err(_) => {
-            println!("[drcom-keep-alive]: receive keep-alive response data from server failed.");
+            info!("[drcom-keep-alive]: receive keep-alive response data from server failed.");
             Err(Error::AliveError)
         }
     }
@@ -517,14 +519,14 @@ fn logout(runtime_data: &mut RuntimeData) -> Result<()> {
     match result {
         Ok((len, _)) => {
             if len > 0 {
-                println!("[drcom-logout]: logout success!");
+                info!("[drcom-logout]: logout success!");
                 return Ok(());
             }
 
             Err(Error::LogoutError)
         }
         Err(_) => {
-            println!("[drcom-logout]: receive logout response data from server failed.");
+            info!("[drcom-logout]: receive logout response data from server failed.");
             Err(Error::LogoutError)
         }
     }

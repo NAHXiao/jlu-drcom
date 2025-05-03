@@ -1,5 +1,4 @@
 use getifs::{interfaces, MacAddr};
-use mac_address::MacAddress;
 use md5::{Digest, Md5};
 use reqwest::blocking::get;
 use std::io;
