@@ -1,0 +1,17 @@
+[package]
+name = "drcomrs"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+clap = { version = "4.4", features = ["derive"] }    # Command line argument parsing
+serde = { version = "1.0", features = ["derive"] }   # Serialization/deserialization
+serde_yaml = "0.9"                                  # YAML support for config
+md-5 = "0.10"                                       # MD5 hashing
+hex = "0.4"                                         # Hex encoding/decoding
+dirs = "6.0"                                        # Platform-specific directories
+tokio = { version = "1.32", features = ["full"] }   # Async runtime
+socket2 = "0.5"                                     # Cross-platform socket
+rand = "0.9"                                        # Random number generation
+reqwest = { version = "0.12", features = ["blocking"] } # HTTP client for connection testing
+rpassword = "7.2"                                   # Reading password without echo
