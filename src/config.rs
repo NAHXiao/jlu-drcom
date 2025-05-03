@@ -8,7 +8,7 @@ use std::path::PathBuf;
 pub struct Config {
     pub username: String,
     pub password_enctypted: String,
-    pub mac: String,//TODO:
+    pub mac: [u8;6],
     #[serde(default = "default_server_addr")]
     pub server_addr: String,
     #[serde(default = "default_server_port")]
@@ -36,7 +36,7 @@ fn default_os_name() -> String {
 }
 
 impl Config {
-    pub fn new(username: String, password: String, mac: String) -> Self {//TODO:
+    pub fn new(username: String, password: String, mac: [u8;6]) -> Self {
         Config {
             username,
             password_enctypted: password,

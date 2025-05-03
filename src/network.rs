@@ -1,5 +1,5 @@
 use crate::config::Config;
-use crate::util::{decrypt, fingerprint, get_ip_by_mac, test_net_connection};
+use crate::util::{decrypt, fingerprint, get_ip_by_mac, mac2u64, test_net_connection};
 use md5::{Digest, Md5};
 use std::net::{Ipv4Addr, SocketAddr, UdpSocket};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -70,17 +70,9 @@ pub fn login_and_keep(config: &Config) -> Result<()> {
             println!("Error setting Ctrl-C handler : {}", e);
         }
     }
-    let mac_bytes = parse_mac_address(&config.mac)?;
-    let ip_address = get_ip_by_mac(
-        &(0..6)
-            .map(|i| {
-                let chars: Vec<char> = (&config.mac).strip_prefix("0x").unwrap().chars().collect();
-                format!("{}{}", chars[i * 2], chars[i * 2 + 1])
-            })
-            .collect::<Vec<_>>()
-            .join(":"),
-    )?;
-    println!("{:?}", ip_address);
+    let mac_bytes = config.mac;
+    let ip_address = get_ip_by_mac(mac_bytes)?;
+    println!("[drcom-bindip]: bind to ip: {:?}", ip_address);
     let socket = create_socket(&ip_address)?;
     let server_addr: SocketAddr = format!("{}:{}", config.server_addr, config.server_port)
         .parse()
@@ -172,32 +164,6 @@ fn create_socket(ip_address: &Ipv4Addr) -> Result<UdpSocket> {
     Ok(socket)
 }
 
-fn parse_mac_address(mac_str: &str) -> Result<[u8; 6]> {
-    let mut mac_val: u64 = 0;
-    if mac_str.starts_with("0x") {
-        mac_val = u64::from_str_radix(&mac_str[2..], 16).map_err(|_| {
-            Error::CreateSockError(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                "Invalid MAC address",
-            ))
-        })?;
-    } else {
-        mac_val = u64::from_str_radix(mac_str, 16).map_err(|_| {
-            Error::CreateSockError(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                "Invalid MAC address",
-            ))
-        })?;
-    }
-
-    let mut mac_bytes = [0u8; 6];
-    for i in (0..6).rev() {
-        mac_bytes[i] = (mac_val & 0xFF) as u8;
-        mac_val >>= 8;
-    }
-
-    Ok(mac_bytes)
-}
 fn set_challenge_data(data: &mut [u8], try_count: u8) {
     data.fill(0);
 
@@ -216,7 +182,6 @@ fn challenge(runtime_data: &mut RuntimeData) -> Result<()> {
             return Err(Error::ChallengeError);
         }
         set_challenge_data(&mut runtime_data.challenge_send_data, try_count);
-        println!("challenge data:{:?}", runtime_data.challenge_send_data);
         try_count += 1;
         runtime_data
             .socket
@@ -286,12 +251,7 @@ fn set_login_data(
     for i in 0..6 {
         sum = (md5_result[i] as u64) + sum * 256;
     }
-    // Convert MAC to integer
-    let mut mac_val: u64 = 0;
-    for byte in mac_bytes.iter() {
-        mac_val = (mac_val << 8) | (*byte as u64);
-    }
-    // println!("mac_val:{}",mac_val);
+    let mac_val = mac2u64(mac_bytes);
     sum ^= mac_val;
     // Copy MAC XOR result
     for i in (0..6).rev() {
@@ -403,7 +363,6 @@ fn set_login_data(
     runtime_data.login_data[data_index] = 0x00;
     data_index += 1;
 
-    let mac_val = mac_bytes.iter().fold(0u64, |acc, &b| (acc << 8) | b as u64);
     for i in 0..6 {
         runtime_data.login_data[data_index + i] = ((mac_val >> (i * 8)) & 0xFF) as u8;
     }

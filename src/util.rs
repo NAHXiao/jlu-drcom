@@ -1,25 +1,24 @@
 use getifs::{interfaces, MacAddr};
+use mac_address::MacAddress;
 use md5::{Digest, Md5};
 use reqwest::blocking::get;
 use std::io;
 use std::net::Ipv4Addr;
-use std::str::FromStr;
 pub fn md5_hash(input: &str) -> String {
     let mut hasher = Md5::new();
     hasher.update(input.as_bytes());
     let result = hasher.finalize();
     hex::encode(result)
 }
-pub fn validate_mac(mac: &str) -> bool {
-    if mac.len() != 14 || !mac.starts_with("0x") {
-        return false;
+pub fn mac2u64(mac_bytes:[u8;6])->u64{
+    let mut mac_val: u64 = 0;
+    for byte in mac_bytes.iter() {
+        mac_val = (mac_val << 8) | (*byte as u64);
     }
-    mac[2..].chars().all(|c| c.is_ascii_hexdigit())
+    mac_val
 }
-pub fn get_ip_by_mac(mac_str: &str) -> Result<Ipv4Addr, io::Error> {
-    let mac = MacAddr::from_str(mac_str)
-        .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e.to_string()))?;
-
+pub fn get_ip_by_mac(mac_bytes: [u8;6]) -> Result<Ipv4Addr, io::Error> {
+    let mac:MacAddr = MacAddr::new(mac_bytes);
     for interface in interfaces()? {
         if let Some(mac_addr) = interface.mac_addr() {
             if mac_addr == mac {

@@ -41,12 +41,13 @@ fn mainloop(config: &Config) -> Result<()> {
     loop {
         match login_and_keep(config) {
             Err(e) => match e {
-                LoginError | LogoutError|LogoutSuccess => return Err(Box::new(e)),
+                LoginError | LogoutError | LogoutSuccess => return Err(Box::new(e)),
                 _ => {
-                    println!("Err:{:?}", e);
+                    println!("[drcom-mainloop] PANIC:{:?}", e);
                 }
             },
-            _ => {}
+            _ => {
+            }
         }
         sleep(Duration::from_secs(5));
     }
